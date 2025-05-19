@@ -1,0 +1,28 @@
+name: TowerDefense
+version: '1.0-SNAPSHOT' # This will be replaced by Maven
+main: com.thepcuser.towerdefense.TowerDefense
+api-version: '1.21'
+authors: [YourName] # Replace with your name or organization
+description: A Tower Defense minigame plugin.
+website: yourwebsite.com # Optional: Replace with your website
+
+# Optional: Define plugin load order if needed
+# loadbefore: [OtherPlugin]
+# depend: [Vault, WorldEdit, PlaceholderAPI] # List soft dependencies here if they are truly optional at load time
+softdepend: [Vault, WorldEdit, PlaceholderAPI]
+
+commands:
+  towerdefense:
+    description: Main command for TowerDefense plugin.
+    usage: /<command> [subcommand] [args]
+    aliases: [td]
+    permission: towerdefense.admin # Example permission
+
+permissions:
+  towerdefense.admin:
+    description: Allows access to all TowerDefense admin commands.
+    default: op
+  towerdefense.player:
+    description: Allows players to participate in TowerDefense games.
+    default: true
+  # Add more granular permissions as needed

@@ -1,0 +1,71 @@
+# TowerDefense Plugin Configuration
+
+# General settings
+general:
+  debug-mode: false # Enable for detailed console logging
+  language-file: "messages.yml" # Specifies the messages file to use
+  save-interval-minutes: 15 # How often to automatically save game states and arena data
+
+# Economy settings
+economy:
+  enabled: true # Set to false to disable Vault integration and use an internal economy
+  starting-balance: 100 # Initial currency for players starting a game
+  kill-reward-base: 10 # Base currency awarded for killing a basic enemy
+  wave-completion-bonus: 50 # Bonus currency for successfully completing a wave
+  # Per-enemy type rewards can be defined in enemies.yml
+
+# Game mechanics settings
+game:
+  max-concurrent-games: 5 # Maximum number of games that can run simultaneously
+  default-lives: 20 # Default number of lives a player/team starts with
+  max-players-per-arena: 4 # Maximum players allowed in a single arena/game instance
+  auto-start-timer-seconds: 30 # Countdown timer before a game starts automatically when enough players join
+  min-players-to-start: 1 # Minimum players required for a game to start
+  wave-delay-seconds: 10 # Time in seconds between waves
+
+# Scoreboard settings
+scoreboard:
+  enabled: true
+  title: "&b&lTower Defense"
+  update-interval-ticks: 20 # How often the scoreboard updates (20 ticks = 1 second)
+  lines:
+    - "&7------------------"
+    - "&eArena: &f%arena_name%"
+    - "&eWave: &f%current_wave%/%total_waves%"
+    - "&eEnemies Left: &f%enemies_remaining%"
+    - "&cLives: &f%player_lives%"
+    - "&aMoney: &f%player_money%"
+    - "&dScore: &f%player_score%"
+    - "&7------------------"
+
+# Leaderboard settings
+leaderboard:
+  enabled: true
+  update-interval-minutes: 5 # How often to refresh leaderboard data
+  max-entries: 10 # Maximum number of entries to display on the leaderboard
+  # Storage type can be YAML or potentially database in the future
+  storage-type: "yaml"
+
+# WorldEdit integration
+worldedit:
+  # No specific config here, but good to have a section if needed later
+  # e.g., default schematic paste options
+
+# Backup system
+backup:
+  enabled: true
+  interval-hours: 24 # How often to create a backup of arena and game data
+  max-backups: 7 # Maximum number of backups to keep (older ones will be deleted)
+  backup-folder: "backups"
+
+# PlaceholderAPI settings
+placeholderapi:
+  # Define custom placeholders here if needed, though most will be registered dynamically
+  # Example:
+  # custom_placeholder_name: "Value"
+
+# Advanced settings - modify with caution
+advanced:
+  pathfinding-algorithm: "A_STAR" # Options: A_STAR, DIJKSTRA (if multiple are implemented)
+  entity-spawn-rate-ticks: 20 # Ticks between spawning individual enemies in a wave
+  max-entities-per-chunk: 50 # Helps control server load, might need adjustment

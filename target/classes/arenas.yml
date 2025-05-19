@@ -1,0 +1,91 @@
+# TowerDefense Plugin - Arena Configurations
+#
+# Each arena has a unique key (e.g., 'map1', 'castle_siege')
+#
+# Properties for each arena:
+#   name: "Display Name for the Arena" (Supports color codes)
+#   enabled: true/false (Whether this arena is available for players to join)
+#   world: "world_name" (The Minecraft world where this arena is located)
+#   # WorldEdit selection-based boundaries (min and max points of the arena region)
+#   region:
+#     min-x: 0
+#     min-y: 60
+#     min-z: 0
+#     max-x: 100
+#     max-y: 80
+#     max-z: 100
+#   # Enemy spawn point
+#   spawn-point:
+#     x: 5.5
+#     y: 61.0
+#     z: 5.5
+#     yaw: 0.0
+#     pitch: 0.0
+#   # Enemy end point (where they try to reach)
+#   end-point:
+#     x: 95.5
+#     y: 61.0
+#     z: 95.5
+#   # Path waypoints for enemies (list of coordinates, in order)
+#   # Each waypoint is a map with x, y, z
+#   waypoints:
+#     - { x: 10.5, y: 61.0, z: 10.5 }
+#     - { x: 10.5, y: 61.0, z: 80.5 }
+#     - { x: 80.5, y: 61.0, z: 80.5 }
+#     # Add more waypoints to define the path
+#   # Tower placement zones (list of regions where towers can be built)
+#   # Each zone is defined by min and max coordinates similar to the main region
+#   tower-zones:
+#     - min-x: 1, min-y: 60, min-z: 1, max-x: 20, max-y: 65, max-z: 20
+#     - min-x: 30, min-y: 60, min-z: 30, max-x: 50, max-y: 65, max-z: 50
+#   # Wave configuration for this specific arena (can override global or use a template)
+#   wave-config:
+#     total-waves: 20
+#     # Specific wave definitions can be detailed here or in a separate wave_templates.yml
+#     # Example: wave_1: { enemy_type: basic, count: 10, spawn_delay_ticks: 20 }
+#   max-players: 4 # Max players for this arena (can override global config)
+#   min-players: 1 # Min players to start for this arena (can override global config)
+
+# Example Arena:
+# arenas:
+#   desert_ruins:
+#     name: "&6Desert Ruins"
+#     enabled: true
+#     world: "td_world_1"
+#     region:
+#       min-x: -50
+#       min-y: 64
+#       min-z: -50
+#       max-x: 50
+#       max-y: 80
+#       max-z: 50
+#     spawn-point:
+#       x: -45.5
+#       y: 65.0
+#       z: 0.5
+#       yaw: 90.0
+#       pitch: 0.0
+#     end-point:
+#       x: 45.5
+#       y: 65.0
+#       z: 0.5
+#     waypoints:
+#       - { x: -30.5, y: 65.0, z: 0.5 }
+#       - { x: -30.5, y: 65.0, z: -20.5 }
+#       - { x: 0.5, y: 65.0, z: -20.5 }
+#       - { x: 0.5, y: 65.0, z: 20.5 }
+#       - { x: 30.5, y: 65.0, z: 20.5 }
+#       - { x: 30.5, y: 65.0, z: 0.5 }
+#     tower-zones:
+#       - min-x: -48, min-y: 64, min-z: -48, max-x: -35, max-y: 70, max-z: -5
+#       - min-x: -10, min-y: 64, min-z: -30, max-x: 10, max-y: 70, max-z: -10
+#       - min-x: -10, min-y: 64, min-z: 10, max-x: 10, max-y: 70, max-z: 30
+#       - min-x: 35, min-y: 64, min-z: -5, max-x: 48, max-y: 70, max-z: 5
+#     wave-config:
+#       total-waves: 25
+#     max-players: 4
+#     min-players: 1
+
+# This file will be populated by in-game commands or manual configuration.
+# The structure above is a template for how arena data could be stored.
+arenas: {}

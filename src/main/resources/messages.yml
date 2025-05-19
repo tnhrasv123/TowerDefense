@@ -1,0 +1,125 @@
+# TowerDefense Plugin Messages
+# You can use color codes with '&'
+
+prefix: "&8[&bTowerDefense&8] &r"
+
+# General messages
+reload-success: "&aPlugin reloaded successfully!"
+reload-fail: "&cFailed to reload plugin. Check console for errors."
+no-permission: "&cYou do not have permission to use this command."
+player-only-command: "&cThis command can only be run by a player."
+unknown-command: "&cUnknown command. Type &e/td help &cfor a list of commands."
+config-reloaded: "&aConfiguration files reloaded."
+
+# Arena setup and management messages
+arena:
+  created: "&aArena '&e%arena_name%&a' created successfully!"
+  deleted: "&aArena '&e%arena_name%&a' deleted successfully."
+  exists: "&cAn arena with the name '&e%arena_name%&c' already exists."
+  not-found: "&cCould not find an arena named '&e%arena_name%&c'."
+  invalid-selection: "&cInvalid WorldEdit selection. Please select a valid region."
+  set-spawn: "&aEnemy spawn point for arena '&e%arena_name%&a' set successfully."
+  set-endpoint: "&aEnemy end point for arena '&e%arena_name%&a' set successfully."
+  add-waypoint: "&aWaypoint &e#%waypoint_index% &aadded to arena '&e%arena_name%&a'."
+  clear-waypoints: "&aWaypoints for arena '&e%arena_name%&a' cleared."
+  set-tower-zone: "&aTower placement zone for arena '&e%arena_name%&a' defined."
+  list-header: "&6Available Arenas:&r"
+  list-item: "&7- &e%arena_name% &7(Status: %arena_status%)"
+  list-empty: "&cNo arenas have been created yet."
+  enabled: "&aArena '&e%arena_name%&a' has been enabled."
+  disabled: "&cArena '&e%arena_name%&c' has been disabled."
+  saved: "&aArena '&e%arena_name%&a' data saved."
+
+# Game related messages
+game:
+  join: "&aYou have joined arena '&e%arena_name%&a'."
+  leave: "&cYou have left the arena."
+  full: "&cArena '&e%arena_name%&c' is full."
+  already-in-game: "&cYou are already in a game."
+  not-in-game: "&cYou are not currently in a game."
+  starting: "&eGame in arena '&b%arena_name%&e' starting in &b%time% &eseconds!"
+  started: "&aGame in arena '&b%arena_name%&a' has started!"
+  ended: "&eGame in arena '&b%arena_name%&e' has ended."
+  win: "&aCongratulations! Your team won!"
+  lose: "&cGame Over! Your team lost. Better luck next time!"
+  wave-starting: "&eWave &b%wave_number% &estarting soon..."
+  wave-started: "&eWave &b%wave_number% &estarted! Enemies incoming!"
+  wave-cleared: "&aWave &b%wave_number% &acleared! Prepare for the next wave."
+  boss-wave: "&c&lBOSS WAVE! &r&cA powerful enemy approaches!"
+  enemy-leaked: "&cAn enemy reached the end! Lives remaining: &e%lives%"
+  not-enough-money: "&cYou don't have enough money to buy/upgrade this tower."
+  tower-placed: "&a%tower_type% &aplaced successfully."
+  tower-upgraded: "&a%tower_type% &aupgraded to level &e%level%&a."
+  tower-max-level: "&cThis tower is already at its maximum level."
+  cannot-place-tower-here: "&cYou cannot place a tower here."
+  tower-sold: "&aTower sold for &e%amount%&a."
+
+# Tower specific messages
+tower:
+  archer-name: "&aArcher Tower"
+  wizard-name: "&5Wizard Tower"
+  cannon-name: "&6Cannon Tower"
+  freezer-name: "&bFreezer Tower"
+  bomber-name: "&cBomber Tower"
+  # Add descriptions or other specific messages if needed
+
+# Enemy specific messages
+enemy:
+  basic-name: "&7Basic Enemy"
+  armored-name: "&8Armored Enemy"
+  speed-name: "&eSpeedy Enemy"
+  flying-name: "&fFlying Enemy"
+  healer-name: "&dHealer Enemy"
+  boss-name: "&4&lBoss Enemy"
+  split-name: "&2Splitter Enemy"
+
+# Shop GUI titles and item names
+shop:
+  title: "&1Tower Shop"
+  buy-tower: "&aBuy %tower_name%"
+  upgrade-tower: "&aUpgrade %tower_name%"
+  sell-tower: "&cSell Tower"
+  cost: "&eCost: &6%cost%"
+  damage: "&cDamage: &f%value%"
+  range: "&9Range: &f%value% blocks"
+  attack-speed: "&dAttack Speed: &f%value%/sec"
+  effect: "&bEffect: &f%description%"
+  next-level: "&7Next Level:"
+  current-level: "&7Level: &e%level%"
+  max-level: "&cMax Level Reached"
+  confirm-purchase: "&aClick to purchase"
+  confirm-upgrade: "&aClick to upgrade"
+  confirm-sell: "&cClick to sell for &e%amount%"
+  close-button: "&cClose Shop"
+
+# Team messages
+team:
+  created: "&aTeam '&e%team_name%&a' created."
+  disbanded: "&cTeam '&e%team_name%&c' disbanded."
+  invited: "&aYou have invited &e%player_name% &ato your team."
+  invite-received: "&e%player_name% &ahas invited you to join their team. Type &b/td team accept %team_name% &ato join."
+  joined: "&a%player_name% &ahas joined your team."
+  left: "&c%player_name% &chas left your team."
+  kicked: "&cYou have been kicked from the team."
+  player-kicked: "&c%player_name% &chas been kicked from the team."
+  not-leader: "&cYou are not the leader of this team."
+  already-in-team: "&cYou are already in a team."
+  player-not-in-team: "&c%player_name% &cis not in your team."
+  no-team-invite: "&cYou do not have a pending invite from this team or player."
+
+# Leaderboard messages
+leaderboard:
+  title: "&6&lTop Players - %stat_type%"
+  entry: "&e%rank%. &f%player_name% &7- &b%score%"
+  empty: "&cNo leaderboard data available yet."
+
+# Placeholders (for PlaceholderAPI)
+placeholder:
+  current-wave: "Current Wave"
+  total-waves: "Total Waves"
+  enemies-remaining: "Enemies Remaining"
+  player-lives: "Player Lives"
+  player-money: "Player Money"
+  player-score: "Player Score"
+  arena-name: "Arena Name"
+  game-status: "Game Status"

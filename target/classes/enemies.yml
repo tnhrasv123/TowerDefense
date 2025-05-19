@@ -1,0 +1,129 @@
+# TowerDefense Plugin - Enemy Specifications
+
+# Each enemy type has a unique key (e.g., 'basic', 'armored')
+#
+# Common Properties for each enemy type:
+#   name: Display name of the enemy (supports color codes).
+#   health: Base health points.
+#   speed: Movement speed (e.g., 0.2 is default player speed, higher is faster).
+#   damage-reduction: Percentage of damage reduction (0.0 to 1.0, e.g., 0.25 for 25% reduction).
+#   kill-reward: Currency awarded for killing this enemy (can override base in config.yml).
+#   entity-type: Minecraft entity type to represent this enemy (e.g., ZOMBIE, SKELETON).
+#   # Optional: equipment, potion effects
+#   equipment:
+#     helmet: IRON_HELMET
+#     chestplate: DIAMOND_CHESTPLATE
+#     leggings: LEATHER_LEGGINGS
+#     boots: GOLDEN_BOOTS
+#     mainhand: IRON_SWORD
+#   potion-effects:
+#     - "SPEED:1:100000" # Effect:Amplifier:DurationInTicks (permanent if duration is high)
+
+# Wave definitions can refer to these enemy types.
+# Bosses are typically defined here and then specified in wave progression.
+
+enemies:
+  basic:
+    name: "&7Basic Grunt"
+    entity-type: "ZOMBIE"
+    health: 50.0
+    speed: 0.23 # Slightly faster than default zombie
+    damage-reduction: 0.0
+    kill-reward: 5
+
+  armored:
+    name: "&8Armored Knight"
+    entity-type: "ZOMBIE"
+    health: 100.0
+    speed: 0.20 # Slower due to armor
+    damage-reduction: 0.30 # Takes 30% less damage
+    kill-reward: 10
+    equipment:
+      helmet: "IRON_HELMET"
+      chestplate: "IRON_CHESTPLATE"
+      leggings: "IRON_LEGGINGS"
+      boots: "IRON_BOOTS"
+
+  speed:
+    name: "&eSwift Runner"
+    entity-type: "HUSK" # Visually distinct
+    health: 30.0
+    speed: 0.35 # Significantly faster
+    damage-reduction: 0.0
+    kill-reward: 8
+    potion-effects:
+      - "SPEED:0:100000" # Speed I
+
+  flying:
+    name: "&fPhantom Scout"
+    entity-type: "PHANTOM"
+    health: 40.0
+    speed: 0.28 # Refers to flying speed if applicable, or general movement
+    damage-reduction: 0.0
+    kill-reward: 12
+    # Special flag for pathfinding: ignores ground path
+    ignores-ground-path: true
+
+  healer:
+    name: "&dMystic Healer"
+    entity-type: "VINDICATOR" # Can look like a support unit
+    health: 60.0
+    speed: 0.22
+    damage-reduction: 0.10
+    kill-reward: 15
+    # Special ability: regenerates nearby enemies
+    heal-radius: 5.0 # Blocks
+    heal-amount: 5.0 # Health per pulse
+    heal-interval-ticks: 40 # Every 2 seconds
+
+  # Bosses are defined like other enemies but typically have unique abilities triggered by game logic
+  boss_golem:
+    name: "&4&lIron Tyrant"
+    entity-type: "IRON_GOLEM"
+    health: 1000.0
+    speed: 0.18
+    damage-reduction: 0.20
+    kill-reward: 100
+    # Unique abilities might be hardcoded or scripted based on this type
+    # Example: 'STOMP_ATTACK', 'SUMMON_MINIONS'
+    abilities:
+      - "STOMP_AREA_DAMAGE"
+      - "RESISTANCE_AURA"
+
+  boss_wither:
+    name: "&8&lShadow Lich"
+    entity-type: "WITHER_SKELETON"
+    health: 800.0
+    speed: 0.25
+    damage-reduction: 0.15
+    kill-reward: 120
+    equipment:
+      helmet: "NETHERITE_HELMET"
+      mainhand: "NETHERITE_SWORD"
+    potion-effects:
+      - "REGENERATION:0:100000" # Regen I
+    abilities:
+      - "WITHER_SKULL_BARRAGE"
+      - "TELEPORT_SHORT_RANGE"
+
+  split:
+    name: "&2Slime Splitter"
+    entity-type: "SLIME"
+    health: 70.0
+    speed: 0.20
+    damage-reduction: 0.0
+    kill-reward: 6 # Reward for the main slime
+    # Special: Divides into smaller units on death
+    split-on-death:
+      count: 3 # Number of smaller units to spawn
+      enemy-type: "split_small" # Key of the smaller enemy type
+      # Health/speed of smaller units will be defined in 'split_small'
+
+  split_small: # This is the smaller unit spawned by 'split'
+    name: "&aSmall Slime"
+    entity-type: "SLIME" # Could be a smaller slime size if supported by entity spawning
+    health: 20.0
+    speed: 0.25
+    damage-reduction: 0.0
+    kill-reward: 2 # Reward for each small slime
+    # These typically don't split further, or you could chain them

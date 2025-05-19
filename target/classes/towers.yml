@@ -1,0 +1,166 @@
+# TowerDefense Plugin - Tower Specifications
+
+# Each tower type has a unique key (e.g., 'archer', 'wizard')
+# Under each tower, define its base stats and upgrade levels.
+#
+# Common Properties for each tower level:
+#   cost: Cost to buy or upgrade to this level.
+#   range: Attack range in blocks.
+#   damage: Damage per hit/projectile.
+#   attack-speed: Attacks per second (e.g., 2.0 means 2 attacks per second).
+#   particle-effect: Name of the particle effect to display (e.g., CRIT, FIREWORKS_SPARK).
+#   # Optional: specific sound effects for placement, attack, upgrade
+#   sound-place: "BLOCK_STONE_PLACE"
+#   sound-attack: "ENTITY_ARROW_SHOOT"
+#   sound-upgrade: "BLOCK_ANVIL_USE"
+#
+# Targeting Priorities (can be a list if multiple are supported by a tower, or a single default):
+#   - FIRST (targets the enemy closest to the end of the path)
+#   - LAST (targets the enemy furthest from the end of the path, i.e., closest to spawn)
+#   - STRONGEST (targets the enemy with the highest current health)
+#   - WEAKEST (targets the enemy with the lowest current health)
+#   - NEAREST (targets the enemy closest to the tower itself)
+
+towers:
+  archer:
+    name: "&aArcher Tower"
+    description: "Shoots arrows at single targets with a high rate of fire."
+    item-material: "ARROW" # Material for the shop icon
+    default-targeting-priority: "FIRST"
+    levels:
+      1:
+        cost: 100
+        range: 15.0
+        damage: 10.0
+        attack-speed: 1.5 # attacks per second
+        particle-effect: "CRIT"
+      2:
+        cost: 150
+        range: 18.0
+        damage: 15.0
+        attack-speed: 1.8
+        particle-effect: "CRIT_MAGIC"
+      3:
+        cost: 250
+        range: 22.0
+        damage: 22.0
+        attack-speed: 2.2
+        particle-effect: "TOTEM"
+
+  wizard:
+    name: "&5Wizard Tower"
+    description: "Deals area damage with magical effects."
+    item-material: "BLAZE_ROD"
+    default-targeting-priority: "STRONGEST"
+    area-of-effect-radius: 2.5 # Radius for AoE damage
+    levels:
+      1:
+        cost: 150
+        range: 12.0
+        damage: 8.0 # Damage per enemy in AoE
+        attack-speed: 0.8
+        particle-effect: "SPELL_WITCH"
+      2:
+        cost: 220
+        range: 14.0
+        damage: 12.0
+        attack-speed: 1.0
+        particle-effect: "PORTAL"
+        area-of-effect-radius: 3.0
+      3:
+        cost: 350
+        range: 16.0
+        damage: 18.0
+        attack-speed: 1.2
+        particle-effect: "DRAGON_BREATH"
+        area-of-effect-radius: 3.5
+
+  cannon:
+    name: "&6Cannon Tower"
+    description: "Launches explosive cannonballs dealing splash damage."
+    item-material: "TNT"
+    default-targeting-priority: "FIRST"
+    splash-radius: 3.0 # Radius for splash damage
+    levels:
+      1:
+        cost: 200
+        range: 20.0
+        damage: 25.0 # Damage at epicenter of splash
+        attack-speed: 0.5
+        particle-effect: "EXPLOSION_NORMAL"
+      2:
+        cost: 300
+        range: 23.0
+        damage: 35.0
+        attack-speed: 0.6
+        splash-radius: 3.5
+        particle-effect: "EXPLOSION_LARGE"
+      3:
+        cost: 450
+        range: 26.0
+        damage: 50.0
+        attack-speed: 0.7
+        splash-radius: 4.0
+        particle-effect: "EXPLOSION_HUGE"
+
+  freezer:
+    name: "&bFreezer Tower"
+    description: "Slows enemies within its radius."
+    item-material: "ICE"
+    default-targeting-priority: "NEAREST" # Typically affects an area, not single target for damage
+    # Freezer tower might not deal damage, but applies a slow effect
+    slow-effect-duration-seconds: 3.0 # How long the slow lasts
+    slow-effect-amplifier: 1 # Potion effect amplifier (0 = Slow I, 1 = Slow II, etc.)
+    levels:
+      1:
+        cost: 120
+        range: 10.0 # Radius of slowing effect
+        damage: 1.0 # Optional: very minor damage
+        attack-speed: 1.0 # How often it pulses the slow effect
+        particle-effect: "SNOWFLAKE"
+        slow-effect-duration-seconds: 2.0
+        slow-effect-amplifier: 0
+      2:
+        cost: 180
+        range: 12.0
+        damage: 1.0
+        attack-speed: 1.0
+        particle-effect: "SNOWBALL"
+        slow-effect-duration-seconds: 2.5
+        slow-effect-amplifier: 1
+      3:
+        cost: 280
+        range: 15.0
+        damage: 2.0
+        attack-speed: 1.0
+        particle-effect: "ITEM_SNOWBALL"
+        slow-effect-duration-seconds: 3.0
+        slow-effect-amplifier: 2
+
+  bomber:
+    name: "&cBomber Tower"
+    description: "Deals massive damage in an area but has a very slow rate of fire."
+    item-material: "FIRE_CHARGE"
+    default-targeting-priority: "STRONGEST"
+    blast-radius: 4.0
+    levels:
+      1:
+        cost: 300
+        range: 25.0
+        damage: 100.0
+        attack-speed: 0.1 # Very slow, e.g., once every 10 seconds
+        particle-effect: "LAVA"
+      2:
+        cost: 450
+        range: 28.0
+        damage: 150.0
+        attack-speed: 0.08 # Even slower
+        blast-radius: 4.5
+        particle-effect: "FLAME"
+      3:
+        cost: 650
+        range: 32.0
+        damage: 220.0
+        attack-speed: 0.06
+        blast-radius: 5.0
+        particle-effect: "SOUL_FIRE_FLAME"

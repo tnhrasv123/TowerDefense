@@ -1,0 +1,9 @@
+<component name="ArtifactManager">
+  <artifact type="jar" build-on-make="true" name="TowerDefense">
+    <output-path>$PROJECT_DIR$/out/artifacts/TowerDefense</output-path>
+    <root id="archive" name="TowerDefense.jar">
+      <element id="module-output" name="towerdefense" />
+      <element id="dir-copy" path="$USER_HOME$/Downloads/BubbleGumSimulatorInfinity/src/main/resources" />
+    </root>
+  </artifact>
+</component>
