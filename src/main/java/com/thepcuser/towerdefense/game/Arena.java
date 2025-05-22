@@ -199,6 +199,25 @@ public class Arena {
     public void setLives(int lives) { this.lives = lives; }
 
     /**
+     * Checks if a given location is a valid place to build a tower.
+     * A location is valid if it's within any of the defined TowerZones.
+     *
+     * @param location The location to check.
+     * @return True if the location is valid for tower placement, false otherwise.
+     */
+    public boolean isValidTowerLocation(Location location) {
+        if (location == null || towerZones.isEmpty()) {
+            return false;
+        }
+        for (TowerZone zone : towerZones) {
+            if (zone.contains(location)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Checks if a given location is within any of the tower placement zones.
      *
      * @param location The location to check.

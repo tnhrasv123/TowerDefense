@@ -2,14 +2,19 @@ package com.thepcuser.towerdefense.game;
 
 import com.thepcuser.towerdefense.TowerDefense;
 import com.thepcuser.towerdefense.manager.ConfigManager;
-
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import com.thepcuser.towerdefense.mob.Enemy;
+import com.thepcuser.towerdefense.mob.EnemyType;
+import com.thepcuser.towerdefense.tower.Tower;
+import com.thepcuser.towerdefense.tower.TowerType;
+import org.bukkit.ChatColor;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
@@ -32,9 +37,10 @@ public class Game {
     private final Map<UUID, Double> playerMoney;
     private int currentWaveNumber;
     private int lives;
-    private final List<LivingEntity> activeEnemies; // Added in a previous step, ensure it's here
+    private final List<Enemy> activeEnemies; // Stores active custom Enemy objects
+    private final Map<Location, Tower> activeTowers; // Stores active towers
     private BukkitTask waveStartTask; // Added in a previous step, ensure it's here
-    // TODO: Add fields for active towers (Map<Location, Tower> or similar).
+    private BukkitTask towerAttackTask; // For towers to attack periodically
     // TODO: Consider a dedicated WaveManager class if wave logic becomes very complex.
     // TODO: Add field for ScoreboardManager/Handler if using a custom scoreboard system.
 
@@ -52,7 +58,8 @@ public class Game {
         this.playerScores = new HashMap<>();
         this.playerMoney = new HashMap<>();
         this.currentWaveNumber = 0;
-        this.activeEnemies = new ArrayList<>(); // Ensure this is initialized
+        this.activeEnemies = new ArrayList<>(); // Initializes list for custom Enemy objects
+        this.activeTowers = new HashMap<>(); // Initialize active towers map
         
         ConfigManager cfgMgr = plugin.getConfigManager();
         this.lives = cfgMgr.getConfig().getInt("game.default-lives", 20);
@@ -65,19 +72,90 @@ public class Game {
     /**
      * Starts the game.
      * Transitions state, initializes players, and starts the first wave.
+     * @return 
      */
     public void startGame() {
         if (this.gameState != Arena.GameState.WAITING && this.gameState != Arena.GameState.STARTING) {
             plugin.getLogger().warning("Attempted to start a game that is not in WAITING or STARTING state: " + arena.getId());
             return;
         }
+
         this.gameState = Arena.GameState.ACTIVE;
         this.arena.setGameState(Arena.GameState.ACTIVE);
-        // currentWaveNumber will be set by nextWave/startWave
-        // Player scores/money are initialized in addPlayer
-        broadcastMessage(plugin.getConfigManager().getPrefixedMessage("game.started").replace("%arena_name%", arena.getName()));
-        // TODO: SCOREBOARD: Initialize/display scoreboard for all players (showing wave, lives, players, etc.)
-        nextWave(); // Start the first wave (this was part of a previous merge, ensure it's correct)
+
+        // Initialize player money and scores
+        double startingMoney = plugin.getConfigManager().getConfig().getDouble("game.starting-money", 100.0);
+        for (Player player : players) {
+            playerMoney.put(player.getUniqueId(), startingMoney);
+            playerScores.put(player.getUniqueId(), 0);
+        }
+
+        // Start tower attack task
+        towerAttackTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            for (Tower tower : activeTowers.values()) {
+                tower.attack(this);
+            }
+        }, 0L, 5L); // Start immediately (0L delay), repeat every 5 ticks (0.25 seconds)
+
+        nextWave(); // Start the first wave
+    }
+
+    /**
+     * Deducts money from a player's balance in this game.
+     * @param player The player.
+     * @param amount The amount to deduct.
+     * @return True if deduction was successful (player had enough money), false otherwise.
+     */
+    public boolean removePlayerMoney(Player player, double amount) {
+        UUID playerId = player.getUniqueId();
+        if (!playerMoney.containsKey(playerId)) {
+            return false; // Player not in this game
+        }
+        double currentMoney = playerMoney.get(playerId);
+        if (currentMoney < amount) {
+            return false; // Not enough money
+        }
+        playerMoney.put(playerId, currentMoney - amount);
+        updateScoreboard(); // Update player's scoreboard
+        return true;
+    }
+    /**
+     * Allows a player to sell a tower at a specific location.
+     * @param player The player attempting to sell the tower.
+     * @param towerLocation The location of the tower to sell.
+     * @return True if the tower was sold successfully, false otherwise.
+     */
+    public boolean sellTower(Player player, Location towerLocation) {
+        Tower tower = activeTowers.get(towerLocation);
+
+        if (tower == null) {
+            player.sendMessage(plugin.getConfigManager().getPrefixedMessage("tower.sell.not-found"));
+            return false;
+        }
+
+        // Check ownership (or allow selling any tower if ownerId is null, though this might be a design choice)
+        if (tower.getOwnerId() != null && !tower.getOwnerId().equals(player.getUniqueId())) {
+            // Potentially add a config option to allow admins to sell any tower
+            player.sendMessage(plugin.getConfigManager().getPrefixedMessage("tower.sell.not-owner"));
+            return false;
+        }
+
+        int sellValue = tower.getSellValue();
+        addMoney(player, sellValue); // Assumes addMoney method exists
+
+        // Remove tower from active towers and world
+        activeTowers.remove(towerLocation);
+        towerLocation.getBlock().setType(Material.AIR); // Remove visual representation
+
+        player.sendMessage(plugin.getConfigManager().getPrefixedMessage("tower.sell.success")
+                .replace("%tower%", tower.getType().getDisplayName())
+                .replace("%value%", String.valueOf(sellValue)));
+        plugin.getLogger().info("Tower " + tower.getType().getId() + " at " + towerLocation.toString() + " sold by " + player.getName() + " for " + sellValue);
+
+        // TODO: Play a sound effect for selling
+        // TODO: Potentially add particle effects for selling
+
+        return true;
     }
 
     /**
@@ -86,48 +164,94 @@ public class Game {
      * @param won True if the players won, false if they lost.
      */
     public void endGame(boolean won) {
+        // First set game states to prevent new operations
         this.gameState = Arena.GameState.ENDED;
         this.arena.setGameState(Arena.GameState.ENDED);
+
+        // Cancel all tasks safely
+        try {
+            if (waveStartTask != null && !waveStartTask.isCancelled()) {
+                waveStartTask.cancel();
+            }
+            if (towerAttackTask != null && !towerAttackTask.isCancelled()) {
+                towerAttackTask.cancel();
+            }
+        } catch (Exception e) {
+            plugin.getLogger().warning("Error cancelling game tasks: " + e.getMessage());
+        }
+
+        // Clear all enemies safely
+        try {
+            for (Enemy enemy : activeEnemies) {
+                try {
+                    if (enemy.getEntity() != null && !enemy.getEntity().isDead()) {
+                        enemy.getEntity().remove();
+                    }
+                } catch (Exception e) {
+                    plugin.getLogger().warning("Error removing enemy: " + e.getMessage());
+                }
+            }
+            activeEnemies.clear();
+        } catch (Exception e) {
+            plugin.getLogger().warning("Error clearing enemies: " + e.getMessage());
+        }
+
+        // Clear all towers safely
+        try {
+            for (Tower tower : activeTowers.values()) {
+                try {
+                    if (tower.getLocation() != null && tower.getLocation().getBlock() != null) {
+                        tower.getLocation().getBlock().setType(Material.AIR);
+                    }
+                } catch (Exception e) {
+                    plugin.getLogger().warning("Error removing tower block: " + e.getMessage());
+                }
+            }
+            activeTowers.clear();
+        } catch (Exception e) {
+            plugin.getLogger().warning("Error clearing towers: " + e.getMessage());
+        }
+
         if (won) {
             broadcastMessage(plugin.getConfigManager().getPrefixedMessage("game.win"));
-            // TODO: Distribute rewards, update leaderboards
+            // Distribute rewards
+            for (Player player : players) {
+                int score = playerScores.getOrDefault(player.getUniqueId(), 0);
+                // Add to player stats/leaderboard
+                // TODO: Implement stats system
+                player.sendMessage(ChatColor.GREEN + "Final Score: " + score);
+            }
         } else {
             broadcastMessage(plugin.getConfigManager().getPrefixedMessage("game.lose"));
             // TODO: Handle loss, update leaderboards
         }
-
-        if (waveStartTask != null && !waveStartTask.isCancelled()) {
-            waveStartTask.cancel();
-        }
-        clearActiveEnemies();
-
-        // Teleport players out
-        Location lobbyLocation = null; // Placeholder, assuming LobbyManager might not exist yet
-        // if (plugin.getLobbyManager() != null) lobbyLocation = plugin.getLobbyManager().getLobbyLocation();
-        for (Player p : new ArrayList<>(players)) { // Iterate copy as removePlayer modifies 'players'
-            removePlayer(p, false); // Remove player without broadcasting leave message again or ending game due to no players
-            if (lobbyLocation != null) {
-                p.teleport(lobbyLocation);
-            } else {
-                // Maybe teleport to world spawn or a configured fallback if lobby is not set
-                if (p.getBedSpawnLocation() != null) p.teleport(p.getBedSpawnLocation());
-                else p.teleport(p.getWorld().getSpawnLocation());
-            }
-            // TODO: Restore player inventory if changed for the game (should be part of removePlayer logic)
-        }
-
-        // TODO: Reset arena state if needed (e.g., remove placed towers, reset blocks if map is modified)
-
-        // TODO: SCOREBOARD: Clear or update scoreboard to show game over status.
-
-        // Notify GameManager to remove this game instance
-        // if (plugin.getGameManager() != null) {
-        //     plugin.getGameManager().removeGame(this);
-        // } else {
-        //     plugin.getLogger().severe("GameManager is null, cannot remove game instance: " + arena.getId());
-        // }
-        plugin.getLogger().info("Game ended for arena: " + arena.getId() + ". GameManager notification TODO.");
     }
+
+    private void clearActiveTowers() {
+        for (Tower tower : activeTowers.values()) {
+            // Remove visual representation of the tower (e.g., set block to AIR)
+            if (tower.getLocation() != null && tower.getLocation().getBlock() != null) {
+                tower.getLocation().getBlock().setType(Material.AIR);
+            }
+        }
+        activeTowers.clear();
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     /**
      * Adds a player to this game session.
@@ -140,10 +264,46 @@ public class Game {
             player.sendMessage(plugin.getConfigManager().getPrefixedMessage("game.full").replace("%arena_name%", arena.getName()));
             return false;
         }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         if (players.contains(player)) {
             player.sendMessage(plugin.getConfigManager().getPrefixedMessage("game.already-in-game"));
             return false;
         }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         players.add(player);
         playerScores.put(player.getUniqueId(), 0);
         playerMoney.put(player.getUniqueId(), plugin.getConfigManager().getConfig().getDouble("economy.starting-balance", 100.0));
@@ -153,6 +313,24 @@ public class Game {
         } else {
             plugin.getLogger().warning("No spawn point set for arena " + arena.getId() + " - cannot teleport player " + player.getName());
         }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         // TODO: Give starting items/kit to player (configurable through config.yml, e.g., economy.starting-kit).
         // TODO: Clear player's inventory before giving kit, or save and restore later.
 
@@ -167,6 +345,8 @@ public class Game {
         return true;
     }
 
+
+
     /**
      * Removes a player from this game session.
      *
@@ -175,7 +355,6 @@ public class Game {
     public void removePlayer(Player player) {
         removePlayer(player, true); // Default to broadcasting and checking game end
     }
-
     /**
      * Internal method to remove a player, with option to suppress certain actions.
      * @param player The player to remove.
@@ -201,14 +380,18 @@ public class Game {
                 .replace("%max_players%", String.valueOf(arena.getMaxPlayers())));
 
             if (players.isEmpty() && gameState == Arena.GameState.ACTIVE) {
-                endGame(false); // End game if no players left
+                if (plugin.getGameManager() != null) {
+                    plugin.getGameManager().endGame(this.arena.getId(), false);
+                } else {
+                    plugin.getLogger().severe("GameManager is null, cannot end game for arena: " + arena.getId() + " after last player left.");
+                    this.endGame(false); // Fallback to internal endGame if GameManager is somehow null
+                }
             }
         } else {
             // If not performing full removal (e.g. during endGame), ensure player still gets a leave message if appropriate
             // but avoid recursive endGame calls or double broadcasts.
         }
     }
-
     /**
      * Broadcasts a message to all players in this game.
      *
@@ -218,7 +401,43 @@ public class Game {
         for (Player p : players) {
             p.sendMessage(message);
         }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     // --- Getters ---
     public Arena getArena() { return arena; }
@@ -232,15 +451,92 @@ public class Game {
         this.gameState = gameState; 
         this.arena.setGameState(gameState); // Keep arena's state in sync
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     public void setLives(int lives) { this.lives = lives; }
     public void decrementLives(int amount) {
         this.lives -= amount;
         if (this.lives <= 0) {
             this.lives = 0;
-            endGame(false); // Players lose if lives reach 0
+            if (plugin.getGameManager() != null) {
+                plugin.getGameManager().endGame(this.arena.getId(), false);
+            } else {
+                plugin.getLogger().severe("GameManager is null. Cannot properly end game for arena: " + arena.getId() + " due to lives depletion. Attempting local cleanup.");
+                this.endGame(false); // Fallback
+            }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         // TODO: SCOREBOARD: Update lives display for all players.
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     // --- Wave Management ---
     /**
@@ -251,14 +547,73 @@ public class Game {
         int totalWaves = arena.getWaveConfig().getInt("total-waves", plugin.getConfigManager().getConfig().getInt("game.default-total-waves", 20));
 
         if (currentWaveNumber >= totalWaves && currentWaveNumber > 0) { // currentWaveNumber > 0 ensures this isn't triggered before first wave
-            endGame(true); // All waves completed
+            if (plugin.getGameManager() != null) {
+                plugin.getGameManager().endGame(this.arena.getId(), true);
+            } else {
+                plugin.getLogger().severe("GameManager is null. Cannot properly end game for arena: " + arena.getId() + " after all waves completed. Attempting local cleanup.");
+                this.endGame(true); // Fallback
+            }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             return;
         }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         if (gameState != Arena.GameState.ACTIVE) {
             plugin.getLogger().info("Game " + arena.getId() + " is not active, cannot start next wave.");
             return;
         }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         broadcastMessage(plugin.getConfigManager().getPrefixedMessage("wave.starting")
                 .replace("%wave_number%", String.valueOf(nextWaveNum))
@@ -270,12 +625,66 @@ public class Game {
             waveStartTask.cancel();
         }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         waveStartTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (gameState == Arena.GameState.ACTIVE) { // Double check game is still active
                 startWave(nextWaveNum);
             }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         }, delayTicks);
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     /**
      * Spawns all enemies for the given wave.
@@ -294,9 +703,50 @@ public class Game {
 
         if (waveSpecificConfig == null) {
             plugin.getLogger().warning("No configuration found for wave " + waveNumber + " in arena " + arena.getId() + ". Ending game as win (or handle differently).");
-            endGame(true);
+            if (plugin.getGameManager() != null) {
+                plugin.getGameManager().endGame(this.arena.getId(), true);
+            } else {
+                plugin.getLogger().severe("GameManager is null. Cannot properly end game for arena: " + arena.getId() + " due to missing wave config. Attempting local cleanup.");
+                this.endGame(true); // Fallback
+            }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             return;
         }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         ConfigurationSection enemiesSection = waveSpecificConfig.getConfigurationSection("enemies");
         if (enemiesSection == null || enemiesSection.getKeys(false).isEmpty()) {
@@ -305,12 +755,71 @@ public class Game {
             return;
         }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         Location spawnPoint = arena.getSpawnPoint();
         if (spawnPoint == null) {
             plugin.getLogger().severe("Arena " + arena.getId() + " has no spawn point defined! Cannot spawn enemies.");
-            endGame(false);
+            if (plugin.getGameManager() != null) {
+                plugin.getGameManager().endGame(this.arena.getId(), false);
+            } else {
+                plugin.getLogger().severe("GameManager is null. Cannot properly end game for arena: " + arena.getId() + " due to missing spawn point. Attempting local cleanup.");
+                this.endGame(false); // Fallback
+            }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             return;
         }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         for (String enemyKey : enemiesSection.getKeys(false)) {
             try {
@@ -323,19 +832,422 @@ public class Game {
                 // Example: ConfigurationSection equipment = enemiesSection.getConfigurationSection(enemyKey + ".equipment");
 
                 for (int i = 0; i < count; i++) {
-                    spawnEnemy(entityType, spawnPoint, waveSpecificConfig.getConfigurationSection(enemyKey));
+                    spawnEnemy(spawnPoint, entityType.name(), waveSpecificConfig.getConfigurationSection(enemyKey));
                 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             } catch (IllegalArgumentException e) {
                 plugin.getLogger().warning("Invalid entity type in wave config for arena " + arena.getId() + ", wave " + waveNumber + ": " + enemyKey);
             }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         if (activeEnemies.isEmpty()) {
             plugin.getLogger().info("Wave " + waveNumber + " for arena " + arena.getId() + " resulted in no active enemies. Proceeding to next wave.");
             Bukkit.getScheduler().runTaskLater(plugin, this::nextWave, 20L * 3); // 3 second delay
         }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         // TODO: SCOREBOARD: Update wave number display for all players.
+
+        // Start tower attack loop if not already running and there are towers
+        if ((towerAttackTask == null || towerAttackTask.isCancelled()) && !activeTowers.isEmpty()) {
+            startTowerAttackLoop();
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // --- Tower Management ---
+
+    /**
+     * Allows a player to place a tower at a specified location.
+     *
+     * @param player The player placing the tower.
+     * @param towerType The type of tower to place.
+     * @param location The location to place the tower.
+     * @return True if the tower was placed successfully, false otherwise.
+     */
+    public boolean placeTower(Player player, TowerType towerType, Location location) {
+        if (!arena.isValidTowerLocation(location)) {
+            player.sendMessage(ChatColor.RED + "You can only place towers in designated tower zones.");
+            return false;
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        if (activeTowers.containsKey(location)) {
+            player.sendMessage(ChatColor.RED + "There is already a tower at this location.");
+            return false;
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        double cost = towerType.getBaseCost();
+        UUID playerId = player.getUniqueId();
+        if (playerMoney.getOrDefault(playerId, 0.0) < cost) {
+            player.sendMessage(ChatColor.RED + "You don't have enough money to build this tower. Cost: " + cost);
+            return false;
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        // Deduct money
+        playerMoney.put(playerId, playerMoney.get(playerId) - cost);
+        // TODO: SCOREBOARD: Update player's money display
+
+        Tower tower = new Tower(plugin, towerType, location, player);
+        activeTowers.put(location, tower);
+
+        // Visually place the tower
+        location.getBlock().setType(towerType.getItemMaterial()); // Use material from TowerType
+        // TODO: Potentially set block data or use custom models/armor stands for tower appearance
+
+        player.sendMessage(ChatColor.GREEN + towerType.getDisplayName() + " placed successfully!");
+        // plugin.getLogger().info("Player " + player.getName() + " placed " + towerType.name() + " at " + locationToString(location));
+
+        // Start tower attack loop if it's the first tower and the loop isn't running
+        if (towerAttackTask == null || towerAttackTask.isCancelled()) {
+            startTowerAttackLoop();
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        return true;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    /**
+     * Starts the task that makes towers attack periodically.
+     */
+    private void startTowerAttackLoop() {
+        if (towerAttackTask != null && !towerAttackTask.isCancelled()) {
+            return; // Already running
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        // Attack tick rate - e.g., 4 times per second (every 5 ticks)
+        long attackInterval = plugin.getConfigManager().getConfig().getLong("towers.attack-interval-ticks", 5L);
+        if (attackInterval <= 0) attackInterval = 5L;
+
+        towerAttackTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            if (gameState != Arena.GameState.ACTIVE || activeTowers.isEmpty()) {
+                if (towerAttackTask != null) {
+                    towerAttackTask.cancel();
+                    towerAttackTask = null;
+                }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                return;
+            }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            for (Tower tower : activeTowers.values()) {
+                tower.attack(this); // Pass Game instance to tower for accessing enemies
+            }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        }, 0L, attackInterval);
+        plugin.getLogger().info("Tower attack loop started for arena: " + arena.getId());
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    public List<Enemy> getActiveEnemies() {
+        return new ArrayList<>(activeEnemies); // Return a copy for safe iteration
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // Utility to convert location to string, useful for logging
+    // private String locationToString(Location loc) {
+    //    if (loc == null) return "null";
+    //    return String.format("%s,%.1f,%.1f,%.1f", loc.getWorld() != null ? loc.getWorld().getName() : "null_world", loc.getX(), loc.getY(), loc.getZ());
+    // }
+
+    /*
+     * @param player The player who killed the enemy (can be null if killed by environment/tower).
+     */
 
      /* @param player The player who killed the enemy (can be null if killed by environment/tower).
      */
@@ -346,55 +1258,343 @@ public class Game {
      * @param enemyConfig The ConfigurationSection for this specific enemy type in the wave, for custom properties.
      * @return The spawned LivingEntity, or null if spawning failed.
      */
-    public LivingEntity spawnEnemy(EntityType type, Location location, ConfigurationSection enemyConfig) {
+    public Enemy spawnEnemy(Location location, String enemyKey, ConfigurationSection enemyConfig) {
         if (location == null || location.getWorld() == null) {
-            plugin.getLogger().warning("Attempted to spawn enemy with null location or world.");
+            plugin.getLogger().warning("Attempted to spawn enemy with null location or world for key: " + enemyKey);
             return null;
         }
-        Entity entity = location.getWorld().spawnEntity(location, type);
-        if (entity instanceof LivingEntity) {
-            LivingEntity livingEntity = (LivingEntity) entity;
-            // TODO: ENEMY_CUSTOMIZATION: Apply custom health, name, equipment, AI goals etc. here from enemyConfig
-            // if (enemyConfig != null) { ... livingEntity.setHealth(enemyConfig.getDouble("health", livingEntity.getHealth())); ... }
-            activeEnemies.add(livingEntity);
-            return livingEntity;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        if (enemyConfig == null) {
+            plugin.getLogger().warning("Attempted to spawn enemy with null enemyConfig for key: " + enemyKey);
+            return null;
         }
-        plugin.getLogger().warning("Failed to spawn " + type.name() + " as LivingEntity.");
-        if(entity != null && !entity.isDead()) entity.remove(); // Clean up non-living entity if spawned
-        return null;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        EnemyType enemyType = EnemyType.fromKey(enemyKey);
+        if (enemyType == null) {
+            plugin.getLogger().warning("Unknown EnemyType for key: " + enemyKey + ". Cannot spawn enemy.");
+            return null;
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        String mcEntityTypeName = enemyConfig.getString("entity-type", enemyType.getEntityTypeName());
+        EntityType mcEntityType;
+        try {
+            mcEntityType = EntityType.valueOf(mcEntityTypeName.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            plugin.getLogger().severe("Invalid entity-type '" + mcEntityTypeName + "' in enemies.yml for key: " + enemyKey);
+            return null;
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        Entity entity = location.getWorld().spawnEntity(location, mcEntityType);
+        if (!(entity instanceof LivingEntity)) {
+            plugin.getLogger().warning("Failed to spawn " + mcEntityType.name() + " as LivingEntity for key: " + enemyKey);
+            if (entity != null && !entity.isDead()) entity.remove(); // Clean up
+            return null;
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        LivingEntity livingEntity = (LivingEntity) entity;
+
+        String customName = ChatColor.translateAlternateColorCodes('&', enemyConfig.getString("name", enemyType.getDisplayName()));
+        double health = enemyConfig.getDouble("health", enemyType.getBaseHealth());
+        double speed = enemyConfig.getDouble("speed", enemyType.getBaseSpeed());
+        double damageReduction = enemyConfig.getDouble("damage-reduction", enemyType.getDamageReduction());
+        int killReward = enemyConfig.getInt("kill-reward", enemyType.getKillReward());
+        boolean ignoresGroundPath = enemyConfig.getBoolean("ignores-ground-path", enemyType.isIgnoresGroundPath());
+
+        Map<String, String> equipmentItems = new HashMap<>();
+        ConfigurationSection equipSection = enemyConfig.getConfigurationSection("equipment");
+        if (equipSection != null) {
+            for (String key : equipSection.getKeys(false)) {
+                equipmentItems.put(key, equipSection.getString(key));
+            }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        List<String> potionEffects = enemyConfig.getStringList("potion-effects");
+        Map<String, Object> specificConfigForEnemyObject = enemyConfig.getValues(false);
+
+        Enemy newEnemy = new Enemy(livingEntity, enemyType, customName, health, speed, damageReduction, killReward, equipmentItems, potionEffects, ignoresGroundPath, specificConfigForEnemyObject);
+
+        activeEnemies.add(newEnemy);
+        // TODO: Pathfinding logic for the newEnemy.getEntity() if needed.
+
+        return newEnemy;
     }
 
-    public void enemyKilled(LivingEntity enemy, Player player) {
-        activeEnemies.remove(enemy);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    public void enemyKilled(LivingEntity killedEntity, Player player) {
+        Enemy killedEnemyObject = null;
+        int foundAtIndex = -1;
+        UUID killedEntityId = killedEntity.getUniqueId();
+
+        for (int i = 0; i < activeEnemies.size(); i++) {
+            Enemy currentEnemy = activeEnemies.get(i);
+            if (currentEnemy.getEntity() != null && currentEnemy.getEntity().getUniqueId().equals(killedEntityId)) {
+                killedEnemyObject = currentEnemy;
+                foundAtIndex = i;
+                break;
+            }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        if (killedEnemyObject != null && foundAtIndex != -1) {
+            activeEnemies.remove(foundAtIndex);
+        } else {
+            plugin.getLogger().warning("EnemyKilled: Could not find an active Enemy wrapper for LivingEntity UUID: " + killedEntityId + ". It might have been already removed or was not a tracked game enemy.");
+            return; // Exit if no tracked enemy was found and removed.
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         if (player != null) {
-            double moneyEarned = plugin.getConfigManager().getConfig().getDouble("economy.money-per-kill", 5.0); // Default money per kill
-            // TODO: Implement more complex money calculation based on enemy type/difficulty from wave config
-            // String enemyConfigPath = "waves." + currentWaveNumber + ".enemies." + enemy.getType().name(); (Example path)
-            // moneyEarned = arena.getWaveConfig().getDouble(enemyConfigPath + ".money", moneyEarned);
-
+            double moneyEarned = killedEnemyObject.getKillReward();
             double currentMoney = playerMoney.getOrDefault(player.getUniqueId(), 0.0);
             playerMoney.put(player.getUniqueId(), currentMoney + moneyEarned);
+
+            String enemyDisplayName = killedEnemyObject.getCustomName();
+            if (enemyDisplayName == null || enemyDisplayName.isEmpty()) {
+                enemyDisplayName = killedEnemyObject.getEnemyType().getDisplayName();
+            }
             player.sendMessage(plugin.getConfigManager().getPrefixedMessage("economy.kill-reward")
                 .replace("%amount%", String.format("%.2f", moneyEarned))
-                .replace("%enemy_type%", enemy.getType().name().toLowerCase().replace('_', ' ')));
+                .replace("%enemy_type%", ChatColor.stripColor(enemyDisplayName))); // Use the actual enemy's name, stripped of color for consistency
             // TODO: SCOREBOARD: Update player's money/score on their scoreboard and potentially a global game score.
-        }
-
-        if (gameState == Arena.GameState.ACTIVE && activeEnemies.isEmpty()) {
-            broadcastMessage(plugin.getConfigManager().getPrefixedMessage("wave.cleared").replace("%wave_number%", String.valueOf(currentWaveNumber)));
-            // Potentially add a small delay here before calling nextWave if desired
-            Bukkit.getScheduler().runTaskLater(plugin, this::nextWave, 20L * 3); // 3 second delay
-        }
-        // TODO: SCOREBOARD: Update wave number display and potentially enemies remaining for all players.
-    }
-
-    private void clearActiveEnemies() {
-        for (LivingEntity enemy : new ArrayList<>(activeEnemies)) { // Iterate over a copy to avoid ConcurrentModificationException
-            if (enemy != null && !enemy.isDead()) {
-                enemy.remove();
             }
         }
+
+
+    private void clearActiveEnemies() {
+        for (Enemy enemy : new ArrayList<>(activeEnemies)) { // Iterate over a copy to avoid ConcurrentModificationException
+            if (enemy.getEntity() != null && !enemy.getEntity().isDead()) {
+                enemy.getEntity().remove(); // Remove from world
+            }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         activeEnemies.clear();
     }
 
@@ -406,7 +1606,6 @@ public class Game {
         broadcastMessage(plugin.getConfigManager().getPrefixedMessage("enemy-leaked").replace("%lives%", String.valueOf(lives)));
         // TODO: Check for game over
     }
-
     // --- Tower Placement & Upgrades ---
     /**
      * Attempts to place a tower for a player at a location.
@@ -424,12 +1623,6 @@ public class Game {
         // TODO: Check if upgrade possible, deduct money, apply upgrade
         return false;
     }
-
-    // --- Economy ---
-    public void addMoney(Player player, double amount) {
-        playerMoney.put(player.getUniqueId(), getMoney(player) + amount);
-        // TODO: Update scoreboard
-    }
     public boolean removeMoney(Player player, double amount) {
         double current = getMoney(player);
         if (current < amount) return false;
@@ -437,6 +1630,8 @@ public class Game {
         // TODO: Update scoreboard
         return true;
     }
+
+
     public double getMoney(Player player) {
         return playerMoney.getOrDefault(player.getUniqueId(), 0.0);
     }
@@ -446,9 +1641,58 @@ public class Game {
         playerScores.put(player.getUniqueId(), getScore(player) + score);
         // TODO: Update scoreboard
     }
+
+    /**
+     * Gets a player's current money balance in this game.
+     * @param player The player.
+     * @return The player's money, or 0 if not in game.
+     */
+    public double getPlayerMoney(Player player) {
+        return playerMoney.getOrDefault(player.getUniqueId(), 0.0);
+    }
+
+    /**
+     * Adds money to a player's balance in this game.
+     * @param player The player.
+     * @param amount The amount to add.
+     */
+    public void addMoney(Player player, double amount) {
+        UUID playerId = player.getUniqueId();
+        double currentMoney = playerMoney.getOrDefault(playerId, 0.0);
+        playerMoney.put(playerId, currentMoney + amount);
+        updateScoreboard(); // Update player's scoreboard
+    }
+
+    /**
+     * Adds a tower to the game.
+     * @param tower The tower instance to add.
+     */
+    public void addTower(Tower tower) {
+        activeTowers.put(tower.getLocation(), tower);
+        // TODO: Potentially add visual representation (block) here if not done elsewhere
+        plugin.getLogger().info("Tower " + tower.getType().getId() + " placed at " + tower.getLocation().toString());
+    }
     public int getScore(Player player) {
         return playerScores.getOrDefault(player.getUniqueId(), 0);
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     // --- Scoreboard & UI ---
     /**
@@ -456,5 +1700,9 @@ public class Game {
      */
     public void updateScoreboard() {
         // TODO: Implement scoreboard update logic (display wave, lives, money, score)
+    }
+
+    public Tower getTowerAtLocation(Location clickedLocation) {
+        return activeTowers.get(clickedLocation);
     }
 }

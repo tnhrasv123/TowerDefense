@@ -52,7 +52,12 @@ game:
   tower-upgraded: "&a%tower_type% &aupgraded to level &e%level%&a."
   tower-max-level: "&cThis tower is already at its maximum level."
   cannot-place-tower-here: "&cYou cannot place a tower here."
-  tower-sold: "&aTower sold for &e%amount%&a."
+  tower-sold: "&aTower sold for &e%amount%&a." # Generic, might be replaced by more specific messages below
+  sell:
+    not-found: "&cNo tower found at this location to sell."
+    not-owner: "&cYou do not own this tower and cannot sell it."
+    success: "&aSuccessfully sold %tower% for &e%value%&a."
+    not-a-tower: "&cThere is no tower here to sell."
 
 # Tower specific messages
 tower:

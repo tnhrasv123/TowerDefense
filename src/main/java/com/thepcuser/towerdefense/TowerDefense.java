@@ -3,6 +3,8 @@ package com.thepcuser.towerdefense;
 import com.thepcuser.towerdefense.manager.ArenaManager;
 import com.thepcuser.towerdefense.manager.ConfigManager;
 import com.thepcuser.towerdefense.manager.GameManager;
+import com.thepcuser.towerdefense.tower.TargetingPriority;
+
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
